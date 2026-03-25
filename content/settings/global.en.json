@@ -1,0 +1,13 @@
+{
+  "siteName": "Site Starter",
+  "siteDescription": "Base template for multilingual digital products",
+  "socialLinks": {
+    "github": "",
+    "linkedin": "",
+    "twitter": "",
+    "instagram": ""
+  },
+  "footer": {
+    "text": "All rights reserved."
+  }
+}

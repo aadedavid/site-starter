@@ -1,0 +1,19 @@
+{
+  "Navigation": {
+    "home": "Home",
+    "about": "About",
+    "contact": "Contact",
+    "faq": "FAQ"
+  },
+  "HomePage": {
+    "title": "Welcome",
+    "description": "Base template for digital products"
+  },
+  "Footer": {
+    "rights": "All rights reserved"
+  },
+  "Common": {
+    "readMore": "Read more",
+    "backToHome": "Back to home"
+  }
+}

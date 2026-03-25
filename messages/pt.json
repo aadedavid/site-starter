@@ -1,0 +1,19 @@
+{
+  "Navigation": {
+    "home": "Inicio",
+    "about": "Sobre",
+    "contact": "Contato",
+    "faq": "FAQ"
+  },
+  "HomePage": {
+    "title": "Bem-vindo",
+    "description": "Template base para produtos digitais"
+  },
+  "Footer": {
+    "rights": "Todos os direitos reservados"
+  },
+  "Common": {
+    "readMore": "Ler mais",
+    "backToHome": "Voltar ao inicio"
+  }
+}

@@ -1,0 +1,11 @@
+# Site Starter
+> Template base para produtos digitais multilingues com CMS visual, SEO e AI discoverability.
+
+## Paginas Principais
+- [Home](/pt): Pagina inicial com apresentacao do projeto
+- [About](/pt/about): Sobre o projeto e missao
+- [Contact](/pt/contact): Formulario de contato
+- [FAQ](/pt/faq): Perguntas frequentes
+
+## Contato
+- Email: contact@example.com
