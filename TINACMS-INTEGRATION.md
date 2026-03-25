@@ -312,20 +312,83 @@ export class NextAuthProvider implements TinaAuthProvider {
 authProvider: isLocal ? new LocalAuthProvider() : new NextAuthProvider()
 ```
 
+### 5.4.1 Google OAuth (recomendado para produção)
+
+**Setup no Google Cloud Console:**
+1. Criar projeto (ou usar existente) em console.cloud.google.com
+2. APIs & Services → Credentials → Create OAuth Client ID
+3. Application type: Web application
+4. Authorized redirect URIs:
+   - `https://seu-site.com/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google` (dev)
+
+**Env vars:**
+```bash
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+**NextAuth route (adicionar Google provider):**
+```typescript
+import Google from "next-auth/providers/google";
+
+providers: [
+  Google({
+    clientId: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  }),
+  Credentials({ /* ... email/senha como fallback */ }),
+]
+```
+
+**Segurança:** O callback `signIn` valida `TINA_ALLOWED_EMAILS` — mesmo via Google OAuth, só emails autorizados conseguem logar.
+
+**Multi-projeto:** Um único Google OAuth Client pode ter múltiplas redirect URIs, servindo vários sites. Ou criar um Client por projeto para isolamento.
+
 ### 5.5 Security headers para o iframe do TinaCMS
 
+**CRÍTICO**: O TinaCMS visual editor abre **as páginas do site** (não só `/admin/`) dentro de um iframe para permitir click-to-edit. Por isso, `X-Frame-Options` deve ser `SAMEORIGIN` **em todo o site**, não apenas nas rotas `/admin/`.
+
 ```typescript
-// next.config.ts — X-Frame-Options deve ser SAMEORIGIN, não DENY
+// next.config.ts — X-Frame-Options deve ser SAMEORIGIN GLOBALMENTE
 {
-  source: "/admin/(.*)",
+  source: "/:path*",
   headers: [
-    { key: "X-Frame-Options", value: "SAMEORIGIN" },
-    // ... outros headers
+    { key: "X-Frame-Options", value: "SAMEORIGIN" },  // NÃO usar DENY
+    { key: "X-Content-Type-Options", value: "nosniff" },
+    { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   ],
 },
 ```
 
-**Não use `DENY` no header `X-Frame-Options`** para rotas `/admin/*` — o TinaCMS abre o site num iframe e isso quebra.
+**Por que SAMEORIGIN global?**
+- `DENY` bloqueia iframes mesmo do mesmo domínio → quebra o visual editor do TinaCMS
+- `SAMEORIGIN` permite iframes apenas do mesmo domínio → seguro contra clickjacking externo
+- Se colocar `SAMEORIGIN` só em `/admin/*`, as páginas do site continuam com `DENY` e o iframe do CMS não carrega
+
+**Armadilha**: Colocar `SAMEORIGIN` só na rota `/admin/` NÃO resolve — o CMS abre as páginas reais do site (ex: `/pt/`, `/en/for-business`) no iframe, e essas páginas herdam o `DENY` da regra global `/:path*`.
+
+### 5.5.1 NextAuth redirect callback (obrigatório)
+
+**CRÍTICO**: Sem o callback `redirect`, o NextAuth v5 com Credentials provider redireciona para a raiz do site (`/`) após login, em vez de voltar ao CMS.
+
+```typescript
+// app/api/auth/[...nextauth]/route.ts — callbacks
+callbacks: {
+  async redirect({ url, baseUrl }) {
+    // Preserva callbackUrl para que login retorne ao /admin/index.html
+    if (url.startsWith("/")) return `${baseUrl}${url}`;
+    if (new URL(url).origin === baseUrl) return url;
+    return baseUrl;
+  },
+  async signIn({ user }) { /* ... */ },
+  // ...
+},
+```
+
+**Sem isso**: Login com sucesso → usuário vai parar na home do site em vez do CMS.
+**Com isso**: Login → volta para `/admin/index.html` (ou `/admin-cms/index.html`).
 
 ### 5.6 Build command no Vercel
 
@@ -389,8 +452,25 @@ ui: {
 
 ### TinaCMS não abre o site no iframe ("refused to connect")
 
-**Causa**: `X-Frame-Options: DENY` bloqueando o iframe.
-**Fix**: Mudar para `SAMEORIGIN` em todos os headers (ou excluir `/admin/*` da regra `DENY`).
+**Causa**: `X-Frame-Options: DENY` bloqueando o iframe. O CMS abre as **páginas reais do site** (ex: `/pt/`, `/en/about`) em iframe — não apenas `/admin/`.
+**Fix**: Mudar para `SAMEORIGIN` **na regra global** `/:path*` do `next.config.js`. NÃO basta colocar `SAMEORIGIN` só em `/admin/*`.
+**Verificação**: `curl -sI https://seu-site.com/en | grep x-frame` deve retornar `SAMEORIGIN`.
+
+### Login redireciona para home em vez do CMS
+
+**Causa**: NextAuth v5 com Credentials provider não preserva `callbackUrl` por padrão.
+**Fix**: Adicionar callback `redirect` no NextAuth config:
+```typescript
+callbacks: {
+  async redirect({ url, baseUrl }) {
+    if (url.startsWith("/")) return `${baseUrl}${url}`;
+    if (new URL(url).origin === baseUrl) return url;
+    return baseUrl;
+  },
+  // ...demais callbacks
+}
+```
+**Verificação**: Após login em `/api/auth/signin?callbackUrl=/admin/index.html`, deve voltar ao CMS.
 
 ### Two collections without match can not have the same `path`
 
