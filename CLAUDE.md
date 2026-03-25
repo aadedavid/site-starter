@@ -11,7 +11,7 @@ Contem: arquitetura, stack, AI discoverability, compliance, checklist de lancame
 
 | Camada | Tecnologia | Porta dev |
 |--------|-----------|-----------|
-| Frontend | Next.js 16+ App Router + Tailwind + Shadcn/UI | 3002 |
+| Frontend | Next.js 16+ App Router + Tailwind + Shadcn/UI | 3010 |
 | CMS | TinaCMS self-hosted (visual editing WYSIWYG) | 4001 (admin) |
 | i18n | next-intl (locale prefix always) | — |
 | Auth | NextAuth (credentials + Google OAuth) | — |
@@ -22,7 +22,7 @@ Contem: arquitetura, stack, AI discoverability, compliance, checklist de lancame
 
 ```bash
 # Dev com TinaCMS (modo local — TINA_PUBLIC_IS_LOCAL=true)
-npm run dev           # tinacms dev -c "next dev -p 3002"
+npm run dev           # TINA_PUBLIC_IS_LOCAL=true tinacms dev -c "next dev -p 3010"
 
 # Build (producao — sem TINA_PUBLIC_IS_LOCAL)
 npm run build         # tinacms build && next build
@@ -66,7 +66,7 @@ MONGODB_DB_NAME=                   # Database name
 
 # Auth
 NEXTAUTH_SECRET=                   # openssl rand -base64 32
-NEXTAUTH_URL=                      # http://localhost:3002 (dev) ou URL prod
+NEXTAUTH_URL=                      # http://localhost:3010 (dev) ou URL prod
 GOOGLE_CLIENT_ID=                  # Google OAuth (optional)
 GOOGLE_CLIENT_SECRET=              # Google OAuth (optional)
 TINA_ALLOWED_EMAILS=               # Comma-separated email whitelist
@@ -86,6 +86,14 @@ RESEND_API_KEY=                    # Resend.com API key
 - **Security headers:** SAMEORIGIN (para TinaCMS iframe), nosniff, strict referrer
 - **AI Discoverability:** Manter `llms.txt`, structured data JSON-LD, robots.txt atualizado
 - **Nao committar:** `.env.local`, `public/admin/` (gerado por tinacms build)
+
+## Documentacao
+
+| Arquivo | Conteudo |
+|---------|---------|
+| `TINACMS-INTEGRATION.md` | Guia completo: arquitetura, o que e possivel/impossivel, setup checklist, erros comuns, alternativas OSS |
+| `SETUP.md` | Setup inicial de novo projeto |
+| `~/.claude/memory/PRD-SITE-STARTER.md` | PRD completo com arquitetura, stack, AI discoverability |
 
 ## Arquivos Criticos
 
