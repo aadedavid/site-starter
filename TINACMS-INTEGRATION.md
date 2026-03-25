@@ -622,7 +622,132 @@ TinaCMS Admin
 
 ---
 
-## 11. Referências
+## 11. Blog / Insights — Fluxo Completo
+
+### Arquitetura de pagina de post
+
+```
+src/app/[locale]/insights/page.tsx        → Lista de posts (postConnection)
+src/app/[locale]/insights/[slug]/page.tsx → Post individual (getPostFromTina)
+src/components/pages/insights-client.tsx  → Client com useTina (lista)
+src/components/pages/post-client.tsx      → Client com useTina (individual)
+content/posts/{slug}.{locale}.md          → Conteudo markdown com frontmatter
+```
+
+### Criar novo post via TinaCMS
+
+1. No admin (`/admin`), ir em "Blog / Insights"
+2. Clicar "Create" → preencher titulo, slug, locale, excerpt, categoria, autor
+3. Escrever conteudo no editor rich-text
+4. Salvar → TinaCMS faz commit no GitHub → Vercel redeploy automatico
+
+### Formato do arquivo markdown
+
+```yaml
+---
+title: "Titulo do artigo"
+locale: "pt"
+slug: "meu-artigo"
+excerpt: "Resumo curto"
+author: "Alexandre Dedavid"
+category: "Estrategia"
+readingTime: "~6 min"
+status: "published"    # published | draft | coming-soon
+hipotese: false
+publishedAt: "2026-03-25T10:00:00.000Z"
+coverImage: "/images/meu-artigo.jpg"
+---
+
+## Conteudo em markdown aqui...
+```
+
+### Renderizacao do body
+
+- **Producao (TinaCMS)**: Body vem como rich-text AST → renderizado com `TinaMarkdown`
+- **Local (filesystem)**: Body vem como string markdown → renderizado com `markdownToHtml()` (parser simples embutido)
+- **Coming-soon sem body**: Mostra placeholder "Conteudo em desenvolvimento"
+
+### Sitemap dinamico
+
+O sitemap (`src/app/sitemap.ts`) le posts e cases do TinaCMS automaticamente:
+- Posts `published` e `coming-soon` sao incluidos (drafts nao)
+- Cases sao incluidos com alternates hreflang
+- Fallback silencioso se TinaCMS estiver indisponivel
+
+### FadeIn em paginas de conteudo
+
+**NAO usar FadeIn** em paginas de artigo (post-client). O intersection observer pode nao disparar para conteudo longo abaixo do fold, deixando o body com opacity 0.
+
+---
+
+## 12. Tipografia (Tailwind v4 + prose)
+
+### @tailwindcss/typography e Tailwind v4
+
+A versao 0.5.x do plugin `@tailwindcss/typography` nao e compativel com `@plugin` ou `@import` no Tailwind v4.2+. A solucao e definir os estilos `.prose` manualmente no `globals.css`.
+
+### Estilos minimos para `.prose`
+
+```css
+.prose { font-size: 1.125rem; line-height: 1.8; color: #434343; }
+.prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 1rem; color: #212121; }
+.prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; color: #212121; }
+.prose p { margin-bottom: 1.25rem; }
+.prose strong { font-weight: 700; color: #212121; }
+.prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1.25rem; }
+.prose li { margin-bottom: 0.5rem; }
+.prose a { color: #FB8C00; text-decoration: none; }
+.prose blockquote { border-left: 3px solid #FB8C00; padding-left: 1rem; font-style: italic; color: #757575; }
+```
+
+---
+
+## 13. Google Auth para TinaCMS
+
+### O que ja esta pronto no codigo
+
+- NextAuth configurado com Google provider em `src/app/api/auth/[...nextauth]/route.ts`
+- MongoDBAdapter para persistir sessoes
+- Whitelist de emails via `TINA_ALLOWED_EMAILS`
+- Callback URLs documentados no `.env.local`
+
+### Setup do Google OAuth Client
+
+1. Ir em [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Criar projeto (ou usar existente)
+3. Ir em "APIs & Services" → "Credentials" → "Create Credentials" → "OAuth client ID"
+4. Tipo: "Web application"
+5. **Authorized redirect URIs**:
+   - Dev: `http://localhost:3002/api/auth/callback/google`
+   - Prod: `https://moviiconsultancy.com/api/auth/callback/google`
+6. Copiar Client ID e Client Secret
+7. Setar no Vercel (SEMPRE com `printf`, nunca `echo`):
+   ```bash
+   printf "CLIENT_ID_AQUI" | vercel env add GOOGLE_CLIENT_ID production
+   printf "CLIENT_SECRET_AQUI" | vercel env add GOOGLE_CLIENT_SECRET production
+   ```
+8. Setar em `.env.local` para dev:
+   ```
+   GOOGLE_CLIENT_ID=xxx
+   GOOGLE_CLIENT_SECRET=xxx
+   ```
+9. Adicionar emails permitidos:
+   ```bash
+   printf "aadedavid@gmail.com,patricia@movii.com.br" | vercel env add TINA_ALLOWED_EMAILS production
+   ```
+
+### Fluxo de autenticacao
+
+1. Usuario acessa `/admin/index.html`
+2. TinaCMS `NextAuthProvider` verifica sessao via `/api/auth/session`
+3. Se nao autenticado, redireciona para `/api/auth/signin`
+4. Pagina de login mostra: Google button + formulario email/senha
+5. Apos login, callback verifica se email esta em `TINA_ALLOWED_EMAILS`
+6. Se permitido, sessao JWT 24h criada → usuario volta ao CMS
+
+---
+
+## 14. Referências
 
 - [TinaCMS Docs](https://tina.io/docs/)
 - [TinaCMS Contextual Editing](https://tina.io/docs/contextual-editing/react)
