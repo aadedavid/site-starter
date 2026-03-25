@@ -95,6 +95,7 @@ Client Component (xxx-client.tsx)
 | HttpError: Not Found ao salvar | `GITHUB_REPO` com `\n` | Recriar com `printf` |
 | Failed to parse URL `/api/tina/gql` | Server usando `client` HTTP | Trocar por `databaseClient` |
 | "refused to connect" no iframe | `X-Frame-Options: DENY` | Mudar para `SAMEORIGIN` |
+| Two collections same `path` | Collections sem `match` compartilham dir | Adicionar `match: { include: "pattern" }` |
 
 ## Variaveis de Ambiente
 

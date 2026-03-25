@@ -392,6 +392,18 @@ ui: {
 **Causa**: `X-Frame-Options: DENY` bloqueando o iframe.
 **Fix**: Mudar para `SAMEORIGIN` em todos os headers (ou excluir `/admin/*` da regra `DENY`).
 
+### Two collections without match can not have the same `path`
+
+**Causa**: Duas collections (ex: `settings` e `theme`) usando o mesmo `path: "content/settings"` sem `match`.
+**Fix**: Adicionar `match: { include: "pattern" }` a cada collection:
+```typescript
+// settings.ts — filtra global.pt.json, global.en.json
+match: { include: "global*" }
+
+// theme.ts — filtra theme.json
+match: { include: "theme" }
+```
+
 ---
 
 ## 8. Estilos, CSS e o que o TinaCMS consegue controlar
