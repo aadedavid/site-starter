@@ -448,6 +448,157 @@ ui: {
 
 ---
 
+## 6.1 Per-page collections vs collection genérica
+
+### Quando usar collections individuais por página
+Para sites com páginas muito diferentes (home com hero+stats, about com timeline+educação, for-business com pain-points+services), **collections individuais** funcionam melhor que uma collection genérica com blocks:
+
+```
+tina/collections/
+  home-page.ts       # homePage — hero, twoPaths, proofStrip, foresight
+  about-page.ts      # aboutPage — hero, journey, education, recognition
+  for-business-page.ts  # forBusinessPage — hero, painPoints, services, process
+  mentoring-page.ts  # mentoringPage — hero, benefits, methodology
+  contact-page.ts    # contactPage — hero, methods, quickLinks
+  fit-page.ts        # fitPage — form labels, result labels, CTA labels
+```
+
+**Vantagens:**
+- Cada página tem campos específicos sem poluir as outras
+- Editor vê apenas os campos relevantes para aquela página
+- TypeScript types são precisos (`client.queries.homePage()` vs `client.queries.page()`)
+
+**Quando NÃO usar:** Sites com muitas páginas semelhantes (blog, portfólio) — aí uma collection com blocks é melhor.
+
+### match pattern para path compartilhado
+
+Quando múltiplas collections usam `path: "content/pages/"`, adicione `match` para evitar conflito:
+
+```typescript
+// home-page.ts
+path: "content/pages",
+match: { include: "home*" },
+
+// about-page.ts
+path: "content/pages",
+match: { include: "about*" },
+
+// fit-page.ts
+path: "content/pages",
+match: { include: "fit*" },
+```
+
+---
+
+## 6.2 Safe wrappers e resiliência em produção
+
+### Padrão getFooSafe()
+
+Toda função de fetch do TinaCMS deve ter uma versão "safe" que retorna `null` em vez de lançar exceção. Isso permite que a página caia graciosamente no fallback hardcoded:
+
+```typescript
+// lib/tina.ts
+
+// Função principal — lança exceção se falhar
+export async function getHomePageFromTina(locale: string) {
+  const client = await db();
+  return toPlainObject(
+    await client.queries.homePage({ relativePath: `home.${locale}.json` })
+  );
+}
+
+// Wrapper safe — retorna null, nunca lança
+export async function getHomePageSafe(locale: string) {
+  try {
+    return await getHomePageFromTina(locale);
+  } catch (error) {
+    console.error(`Failed to fetch home page (${locale}):`, error);
+    return null;
+  }
+}
+```
+
+```typescript
+// Uso no server component
+const tinaData = await getHomePageSafe(locale);
+const page = tinaData?.data?.homePage;
+
+// Se TinaCMS falhou, page é null e o componente usa fallback
+```
+
+**Por que isso importa:** Em produção, se o MongoDB estiver indisponível ou o TinaCMS tiver um bug, o site continua funcionando com os valores fallback hardcoded.
+
+### Fallback SEO metadata
+
+Mantenha SEO metadata hardcoded em cada `page.tsx` como rede de segurança. A prioridade é:
+
+1. TinaCMS `seo` field (se disponível)
+2. Fallback hardcoded no `page.tsx`
+
+```typescript
+const tinaSeo = (tinaData?.data?.homePage as any)?.seo;
+const fallback = metaByLocale[locale];
+const title = tinaSeo?.metaTitle || fallback.title;
+```
+
+**Não mova** os fallbacks para o CMS — isso eliminaria a rede de segurança.
+
+---
+
+## 6.3 Páginas interativas (Fit Check, formulários, wizards)
+
+### Problema
+Páginas com lógica interativa complexa (multi-step wizards, gravação de áudio, upload de arquivos, chamadas de API) são `'use client'` monolíticas. TinaCMS precisa de server component para buscar dados.
+
+### Solução: extrair labels, manter lógica
+
+```
+app/[locale]/fit/page.tsx           ← Server component (fetch labels do CMS)
+app/[locale]/fit/fit-client.tsx     ← Client component (toda a lógica interativa)
+content/pages/fit.{locale}.json     ← Labels editáveis no CMS
+```
+
+**Schema com sub-objetos** para organizar ~35+ labels:
+
+```typescript
+fields: [
+  { type: "object", name: "form", label: "Formulário", fields: [
+    { type: "string", name: "title", label: "Título" },
+    { type: "string", name: "submit", label: "Botão enviar" },
+    // ... mais 12 campos de formulário
+  ]},
+  { type: "object", name: "results", label: "Resultados", fields: [
+    { type: "string", name: "result_strong", label: "Resultado forte" },
+    // ... mais 8 campos de resultado
+  ]},
+  { type: "object", name: "cta", label: "CTA", fields: [/* ... */] },
+  { type: "object", name: "sharing", label: "Compartilhamento", fields: [/* ... */] },
+]
+```
+
+**Server component:** busca labels do CMS, mapeia para formato flat, passa como prop:
+
+```typescript
+// page.tsx (server)
+const tinaData = await getFitPageSafe(locale);
+const labels = tinaData ? buildLabelsFromCms(tinaData) : hardcodedLabels[locale];
+return <FitClient labels={labels} />;
+```
+
+**Client component:** recebe `labels` como prop, usa normalmente:
+
+```typescript
+// fit-client.tsx (client) — lógica 100% preservada
+export default function FitClient({ labels }: { labels: FitLabels }) {
+  // wizard state, audio recording, API calls — tudo igual
+  return <h1>{labels.title}</h1>;
+}
+```
+
+**CRÍTICO:** Não modifique a lógica interativa ao migrar para CMS. Apenas extraia as strings.
+
+---
+
 ## 7. Debugging de problemas comuns
 
 ### "Failed loading TinaCMS assets" / JS assets retornando HTML
