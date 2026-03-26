@@ -96,6 +96,8 @@ Client Component (xxx-client.tsx)
 | Failed to parse URL `/api/tina/gql` | Server usando `client` HTTP | Trocar por `databaseClient` |
 | "refused to connect" no iframe | `X-Frame-Options: DENY` | Mudar para `SAMEORIGIN` |
 | Two collections same `path` | Collections sem `match` compartilham dir | Adicionar `match: { include: "pattern" }` |
+| Home vazia sem erro (blocks null) | `block._template` undefined, GraphQL retorna `__typename` | Helper `getBlockTemplate()` com mapeamento |
+| `tinacms build` falha (GraphQL schema) | Dois templates com campo mesmo nome, tipos diferentes | Renomear campo em um dos templates |
 
 ## Variaveis de Ambiente
 

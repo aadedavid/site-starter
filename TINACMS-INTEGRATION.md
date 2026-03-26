@@ -158,15 +158,36 @@ O pattern mais poderoso para dar autonomia ao editor:
 ```
 
 ```tsx
-// Client component
+// Client component — IMPORTANTE: usar __typename, NÃO _template
+const TYPENAME_TO_TEMPLATE: Record<string, string> = {
+  PageBlocksHero: "hero",
+  PageBlocksCtaFinal: "ctaFinal",
+  // ... mapear todos os templates
+};
+
+function getBlockTemplate(block: any): string | undefined {
+  // _template existe no visual editor do TinaCMS (iframe editing)
+  if (block?._template) return block._template;
+  // __typename é retornado pelo GraphQL em SSR/CSR normal
+  if (block?.__typename) return TYPENAME_TO_TEMPLATE[block.__typename];
+  return undefined;
+}
+
 {page.blocks?.map((block, i) => {
-  switch (block?._template) {
+  switch (getBlockTemplate(block)) {
     case "hero": return <HeroSection key={i} data={block} />;
     case "ctaFinal": return <CtaSection key={i} data={block} />;
     default: return null;
   }
 })}
 ```
+
+**⚠️ ARMADILHA CRÍTICA — `_template` vs `__typename`:**
+- O `content/pages/home.pt.json` salva `_template: "hero"` em cada block
+- MAS quando o TinaCMS processa via GraphQL (`databaseClient`), converte `_template` em `__typename: "PageBlocksHero"` (formato GraphQL union type)
+- Localmente com `TINA_PUBLIC_IS_LOCAL=true` + filesystem fallback, o JSON raw retorna `_template` → funciona
+- Em produção com MongoDB, o `databaseClient` retorna `__typename` → `_template` é `undefined` → todos os blocks caem no `default: return null` → **página vazia sem erro**
+- **Fix**: sempre usar helper `getBlockTemplate()` que checa ambos
 
 **Resultado**: Editor pode adicionar, remover e **reordenar seções** da página via drag-and-drop no sidebar.
 
@@ -471,6 +492,39 @@ callbacks: {
 }
 ```
 **Verificação**: Após login em `/api/auth/signin?callbackUrl=/admin/index.html`, deve voltar ao CMS.
+
+### Blocks com campo de mesmo nome mas tipos diferentes (GraphQL conflict)
+
+**Causa**: Dois block templates com um campo chamado `items` mas com tipos diferentes (ex: `items: object[]` em "tension" e `items: string[]` em "whenWeHelp"). O GraphQL union type não aceita campos com o mesmo nome e tipos conflitantes.
+**Sintoma**: `tinacms build` falha com erro de schema GraphQL.
+**Fix**: Renomear o campo em um dos templates para um nome único:
+```typescript
+// ❌ ERRADO — dois templates com "items" de tipos diferentes
+{ name: "tension", fields: [{ name: "items", type: "object", list: true, fields: [...] }] }
+{ name: "whenWeHelp", fields: [{ name: "items", type: "string", list: true }] }
+
+// ✅ CORRETO — nomes únicos
+{ name: "tension", fields: [{ name: "items", type: "object", list: true, fields: [...] }] }
+{ name: "whenWeHelp", fields: [{ name: "scenarios", type: "string", list: true }] }
+```
+**Regra**: Em blocks pattern, cada nome de campo deve ter o mesmo tipo em TODOS os templates que o usam, ou usar nomes diferentes.
+
+### Home page vazia (blocks renderizam null sem erro)
+
+**Causa**: `renderBlock()` usa `block._template` (ex: `"hero"`) mas o GraphQL do TinaCMS retorna `block.__typename` (ex: `"PageBlocksHero"`). Todos os blocks caem no `default: return null`, renderizando página completamente vazia sem nenhum erro no console.
+**Sintoma**: Página carrega com header + footer mas `<main>` vazio. Runtime logs mostram "blocks count: 7" (dados chegaram), mas nada renderiza.
+**Fix**: Usar helper `getBlockTemplate()` que checa `_template` primeiro (TinaCMS editing) e faz fallback para mapeamento `__typename → template`:
+```typescript
+const TYPENAME_TO_TEMPLATE: Record<string, string> = {
+  PageBlocksHero: "hero",
+  PageBlocksTension: "tension",
+  // ... todos os templates
+};
+function getBlockTemplate(block: any): string | undefined {
+  return block?._template ?? TYPENAME_TO_TEMPLATE[block?.__typename];
+}
+```
+**Por que acontece**: Localmente com `TINA_PUBLIC_IS_LOCAL=true` o filesystem reader retorna o JSON raw (com `_template`). Em produção o `databaseClient` processa via GraphQL e retorna `__typename`.
 
 ### Two collections without match can not have the same `path`
 
