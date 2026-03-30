@@ -952,7 +952,55 @@ A versao 0.5.x do plugin `@tailwindcss/typography` nao e compativel com `@plugin
 
 ---
 
-## 14. Referências
+## 14. Media Manager (self-hosted)
+
+### Configuracao
+
+TinaCMS self-hosted NAO usa Cloudinary por padrao. Para upload de imagens sem TinaCMS Cloud, use `TinaNodeBackend` + GitHub API:
+
+```typescript
+// src/app/api/tina/[...routes]/route.ts
+import { TinaNodeBackend, LocalBackendAuthProvider } from "@tinacms/datalayer";
+import databaseClient from "../../../../tina/__generated__/databaseClient";
+
+const handler = TinaNodeBackend({
+  authProvider: isLocal ? LocalBackendAuthProvider() : AuthJsBackendAuthProvider(...),
+  databaseClient,
+});
+export { handler as GET, handler as POST, handler as PUT, handler as DELETE };
+```
+
+### Como funciona
+1. Editor clica em campo de imagem no CMS → abre media manager
+2. Upload via browser → Next.js API route → GitHub API → commit no repo
+3. Imagem acessivel via `https://raw.githubusercontent.com/...`
+
+### Erro "Bad Route — Cloudinary API route missing"
+**Causa**: TinaCMS tenta usar rota Cloudinary quando `mediaStore` nao esta configurado para self-hosted.
+**Fix**: Usar `TinaNodeBackend` na API route e nao configurar `mediaStore` no `tina/config.ts`.
+
+---
+
+## 15. Search (limitacoes)
+
+**Search NAO funciona em self-hosted.** A documentacao oficial confirma:
+> "Search is not currently supported in self-hosted Tina."
+
+Requer TinaCMS Cloud (SaaS) com `indexerToken` obtido no dashboard.
+
+### Se configurar `search` no config.ts
+Erro de build: `clientId not configured`. O search depende de `clientId` que so existe no TinaCMS Cloud.
+
+### Alternativas para busca no admin self-hosted
+1. Navegacao manual pela sidebar (collections → documentos)
+2. Ctrl+F no browser dentro da lista de documentos
+3. Futuro: TinaCMS promete providers customizados de search
+
+**Regra**: NAO incluir `search` no `tina/config.ts` em modo self-hosted.
+
+---
+
+## 16. Referências
 
 - [TinaCMS Docs](https://tina.io/docs/)
 - [TinaCMS Contextual Editing](https://tina.io/docs/contextual-editing/react)
