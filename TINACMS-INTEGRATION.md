@@ -301,9 +301,29 @@ TINA_ALLOWED_EMAILS=admin@email.com,outro@email.com
 
 ### 5.3 Dual-mode database (local vs produção)
 
+**⚠️ Importante**: `TINA_PUBLIC_IS_LOCAL` sozinho não basta — **preview deploys**
+(staging, branches não-main) do Vercel crasham em runtime com "Database is not
+open" porque herdam envs do ambiente "Preview", que frequentemente **não têm**
+`MONGODB_URI` / `GITHUB_*` (marcadas "Production only"). Use detecção expandida:
+
 ```typescript
-// tina/database.ts
-const isLocal = process.env.TINA_PUBLIC_IS_LOCAL === "true";
+// tina/database.ts — padrão oficial site-starter (3 cenários de local)
+import { createDatabase, createLocalDatabase } from '@tinacms/datalayer';
+import { GitHubProvider } from 'tinacms-gitprovider-github';
+import { MongodbLevel } from 'mongodb-level';
+
+// Local mode em 3 cenários (evita "Database is not open" em runtime):
+// 1. TINA_PUBLIC_IS_LOCAL=true explícito (dev local)
+// 2. VERCEL_ENV !== 'production' (preview deploys — branches tipo staging/PRs)
+// 3. Env vars MongoDB/GitHub ausentes (failsafe — evita crash serverless)
+const isLocal =
+  process.env.TINA_PUBLIC_IS_LOCAL === 'true' ||
+  (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') ||
+  !process.env.MONGODB_URI ||
+  !process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+
+const branch =
+  process.env.GITHUB_BRANCH || process.env.VERCEL_GIT_COMMIT_REF || 'main';
 
 export default isLocal
   ? createLocalDatabase()          // lê do filesystem
@@ -312,6 +332,18 @@ export default isLocal
       gitProvider: new GitHubProvider({ owner, repo, token, branch }),
     });
 ```
+
+**vercel.json também precisa ajustar buildCommand** pra pular `tinacms build`
+com MongoDB em preview:
+
+```json
+{
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then tinacms build && next build; else TINA_PUBLIC_IS_LOCAL=true tinacms build && next build; fi"
+}
+```
+
+**Combinação resolve ambos**: build Tina passa com filesystem em preview, e o
+database.ts runtime também não tenta Mongo quando `VERCEL_ENV=preview`.
 
 ### 5.4 Autenticação em produção
 
@@ -1000,7 +1032,109 @@ Erro de build: `clientId not configured`. O search depende de `clientId` que so 
 
 ---
 
-## 16. Referências
+## 16. Padrões de campo não editável: causas e correções
+
+Esta seção documenta os quatro padrões recorrentes que causam campos "invisíveis" ao TinaCMS, identificados ao longo da integração do movii-site.
+
+### Padrão 1: Hardcoded no JSX (campo existe no schema mas componente ignora)
+
+**Sintoma**: O campo aparece corretamente no TinaCMS admin, mas mudar o valor no CMS não reflete na página.
+
+**Causa**: O componente React usa uma string literal em vez de `{data.field}`.
+
+```tsx
+// ERRADO — hardcoded, ignora o TinaCMS
+<h3>Patricia Mourthé</h3>
+
+// CORRETO — consome o campo TinaCMS com fallback
+<h3 data-tina-field={tinaField(founders, "patriciaName")}>
+  {founders.patriciaName || "Patricia Mourthé"}
+</h3>
+```
+
+**Como detectar**: Grep por strings literais no JSX que deveriam vir do CMS. Se `about.pt.json` tem `"patriciaName": "Patricia Mourthé"` mas o componente tem `>Patricia Mourthé<`, está hardcoded.
+
+---
+
+### Padrão 2: Campo de imagem ausente no schema
+
+**Sintoma**: Foto carrega no site, mas não há campo de imagem no TinaCMS admin para trocá-la.
+
+**Causa**: O componente usa `src="/images/foo.jpg"` hardcoded. TinaCMS só gerencia o que está explicitamente declarado como `type: "image"` no schema.
+
+```typescript
+// ERRADO — TinaCMS não sabe desta imagem
+<Image src="/images/founders/patricia.jpg" />
+
+// CORRETO — campo type: "image" no schema
+{ type: "image", name: "patriciaPhoto", label: "Foto Patricia" }
+
+// E no componente:
+<Image
+  src={founders.patriciaPhoto || "/images/founders/patricia.jpg"}
+  data-tina-field={tinaField(founders, "patriciaPhoto")}
+/>
+```
+
+**Regra**: Todo `src=` hardcoded de imagem editável precisa de campo `type: "image"` no schema.
+
+---
+
+### Padrão 3: Label i18n em vez de campo TinaCMS
+
+**Sintoma**: O texto é visível na página mas não tem handle de edição no TinaCMS.
+
+**Causa**: O texto vem de `t("key")` do `messages/*.json` — é uma string de tradução, fora do escopo do TinaCMS.
+
+```tsx
+// NÃO editável no TinaCMS:
+<h3>{t("labels.deliverables")}</h3>
+
+// Editável no TinaCMS (com fallback para i18n):
+<h3 data-tina-field={tinaField(lever, "deliverablesLabel")}>
+  {lever.deliverablesLabel || t("labels.deliverables")}
+</h3>
+```
+
+**Quando usar TinaCMS vs i18n**: Labels de UI fixos (botão "Enviar", "Cancelar") ficam em i18n. Títulos e labels de seções editáveis pelo cliente ficam em TinaCMS.
+
+---
+
+### Padrão 4: SVG/código React gerado programaticamente
+
+**Sintoma**: O diagrama/gráfico não tem campo no TinaCMS, pois é renderizado por código.
+
+**Causa**: TinaCMS gerencia conteúdo (strings, imagens, booleans) — não gerencia lógica React nem SVG dinâmico.
+
+**Solução**: Campo de imagem opcional como override.
+
+```typescript
+// Schema: campo opcional de imagem
+{ type: "image", name: "loopImage", label: "Imagem do Loop (substitui diagrama SVG)" }
+
+// Componente: imagem se existir, SVG caso contrário
+{mp?.loopImage ? (
+  <Image src={mp.loopImage} alt="The Movii Loop" fill />
+) : (
+  <LoopDiagram />
+)}
+```
+
+---
+
+### Checklist ao revisar editabilidade
+
+Para cada elemento visível na página, perguntar:
+
+- [ ] O texto/imagem vem de um campo TinaCMS com `data-tina-field`?
+- [ ] Se for imagem: há campo `type: "image"` no schema?
+- [ ] Se for label de seção: é string i18n ou campo TinaCMS?
+- [ ] Se for componente gráfico (SVG, chart): há campo de imagem como override?
+- [ ] O componente realmente *usa* o campo do schema (não tem string literal escondida)?
+
+---
+
+## 17. Referências
 
 - [TinaCMS Docs](https://tina.io/docs/)
 - [TinaCMS Contextual Editing](https://tina.io/docs/contextual-editing/react)
