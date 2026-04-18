@@ -345,6 +345,38 @@ com MongoDB em preview:
 **Combinação resolve ambos**: build Tina passa com filesystem em preview, e o
 database.ts runtime também não tenta Mongo quando `VERCEL_ENV=preview`.
 
+### 5.3.1 Alternativa: duplicar envs prod → preview (staging compartilhado)
+
+Se você quer que o preview rode com **Tina real** (MongoDB + GitHub) em vez
+de filesystem local — útil pra validar fluxo editorial antes de promover —
+duplique as env vars de Production pra Preview no Vercel:
+
+```bash
+# Script canônico — copia prod envs pra preview em 30 segundos
+node scripts/duplicate-vercel-envs.mjs
+
+# Trigger rebuild pra envs entrarem em vigor
+git commit --allow-empty -m "chore: rebuild preview with new envs"
+git push origin <branch-staging>
+```
+
+Nesse modo, a lógica do `database.ts` e `vercel.json` condicional continua
+funcionando (defesa em profundidade), mas o CMS funciona plenamente também
+em preview. Tradeoff: edits em staging vão pro MESMO Mongo que prod.
+Pra isolamento real, criar segunda instância Atlas M0 + segundo GitHub
+branch dedicado.
+
+**Quando usar cada modo** (decisão mais comum):
+
+| Modo | Prós | Quando usar |
+|---|---|---|
+| **Filesystem local** (padrão) | Zero setup, zero custo | MVP, preview rápido de UI/layout |
+| **Envs duplicadas prod→preview** | CMS funcional 100% | Validar edits de conteúdo antes de prod |
+| **Infra isolada** (Mongo + GH separados) | 100% safe, sem risco de contaminar prod | Time grande, previews frequentes de schema |
+
+Guia passo-a-passo pra criar staging end-to-end: ver skill
+[`/vercel-preview-env`](~/.claude/skills/vercel-preview-env/SKILL.md).
+
 ### 5.4 Autenticação em produção
 
 ```typescript

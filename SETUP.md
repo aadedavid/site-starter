@@ -187,6 +187,35 @@ TINA_ALLOWED_EMAILS
 
 ---
 
+### 8.1 — Criar ambiente de staging/preview (opcional, recomendado)
+
+Se você quer testar mudanças grandes antes de promover pra `main`/produção, crie uma branch `staging` com env vars duplicadas de produção:
+
+```bash
+# 1. Criar branch e push
+git checkout -b staging
+git push -u origin staging
+# Vercel auto-cria preview deployment em:
+# https://<project>-git-staging-<team>.vercel.app
+
+# 2. Duplicar env vars prod → preview (one-liner)
+node scripts/duplicate-vercel-envs.mjs
+
+# 3. Trigger rebuild pra envs entrarem em vigor
+git commit --allow-empty -m "chore: rebuild with new preview envs"
+git push origin staging
+```
+
+**Por quê**: por default, envs adicionadas via Vercel UI são marcadas só como "Production". Preview deploys crasham com `"Database is not open"` (TinaCMS), `"Missing NEXT_PUBLIC_SUPABASE_URL"`, etc.
+
+O script `duplicate-vercel-envs.mjs` adiciona `"preview"` ao `target` de todas as envs prod-only via API Vercel (precisa `vercel login` feito).
+
+**Workflow completo** (skill dedicada): `/vercel-preview-env` — cria branch + duplica envs + valida build + retorna URL shareable. Use quando "quero um ambiente de staging isolado".
+
+Ver também `TINACMS-INTEGRATION.md §5.3.1` pra tradeoffs entre staging compartilhado vs infra isolada.
+
+---
+
 ## Passo 9 — Gerar llms.txt atualizado
 
 Após criar ou alterar conteúdo:
