@@ -205,6 +205,7 @@ Ver `SETUP.md` para o guia completo com MongoDB, GitHub e deploy em Vercel.
 | Arquivo | O que contém |
 |---------|-------------|
 | `SETUP.md` | Guia passo a passo para configurar um novo projeto do zero |
-| `CLAUDE.md` | Padrões de desenvolvimento, regras críticas, debugging |
+| `AGENTS.md` | Padrões de desenvolvimento, regras críticas, debugging (contrato para qualquer agente) |
+| `CLAUDE.md` | Ponteiro do Claude Code para o `AGENTS.md` |
 | `TINACMS-INTEGRATION.md` | Referência completa do TinaCMS (500+ linhas) |
 | `~/.claude/memory/PRD-SITE-STARTER.md` | PRD com arquitetura, AI discoverability, compliance |
