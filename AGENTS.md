@@ -162,12 +162,12 @@ RESEND_API_KEY=                    # Resend.com API key
 |---------|-----------|
 | `src/config/site.ts` | Identidade do site (nome, URL, descricao) |
 | `src/lib/tina.ts` | Data fetching server-side (databaseClient pattern) |
-| `src/lib/theme.ts` | Theme JSON → CSS custom properties |
+| `src/lib/theme.ts` | Theme JSON → CSS custom properties (não existe na `main` em 21/11/2026; planejado) |
 | `src/lib/metadata.ts` | SEO metadata generator |
 | `src/lib/structured-data.ts` | JSON-LD schema factories |
 | `tina/config.ts` | TinaCMS collections + auth + build |
 | `tina/database.ts` | Dual-mode DB (local/MongoDB) |
-| `tina/collections/theme.ts` | Theme visual (cores, fontes via color picker) |
+| `tina/collections/theme.ts` | Theme visual (cores, fontes via color picker) (não existe na `main` em 21/11/2026; planejado) |
 | `tina/collections/settings.ts` | Nav, emails, footer, social |
 | `middleware.ts` | i18n routing (next-intl) |
 | `vercel.json` | Build: "tinacms build && next build" |
